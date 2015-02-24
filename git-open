@@ -43,23 +43,36 @@ else
 fi
 
 # URL normalization
-# Github support
+# Github 
 if grep -q github <<<$giturl; then
     giturl=${giturl/git\@github\.com\:/https://github.com/}
     providerUrlDifference=tree
-# bitbucket support
+# bitbucket 
 elif grep -q bitbucket <<<$giturl; then
     giturl=${giturl/git\@bitbucket\.org\:/https://bitbucket.org/}
     providerUrlDifference=branch
-# Atlassian Stash support - Stash URLs always contain the /scm/ part
+# Atlassian Stash
 elif grep -q "/scm/" <<<$giturl; then
   re='(.*)/scm/(.*)/(.*)\.git'
-
   if [[ $giturl =~ $re ]]
   then
     giturl=${BASH_REMATCH[1]}/projects/${BASH_REMATCH[2]}/repos/${BASH_REMATCH[3]}
     providerUrlDifference=browse
     branch="?at=refs%2Fheads%2F${branch}"
+  fi
+# Gitlab
+else
+  # custom gitlab
+  gitlab_domain=$(git config --get gitopen.gitlab.domain)
+  if [ ! -z "$gitlab_domain" ]; then
+    if grep -q $gitlab_domain <<<$giturl; then
+      giturl=${giturl/git\@${gitlab_domain}:/https://${gitlab_domain}/}
+      providerUrlDifference=tree
+    fi
+  # hosted gitlab
+  elif grep -q gitlab <<<$giturl; then
+    giturl=${giturl/git\@gitlab\.com\:/https://gitlab.com/}
+    providerUrlDifference=tree
   fi
 fi
 giturl=${giturl%\.git}
@@ -73,20 +86,12 @@ fi
 giturl=${giturl/tree\/master/}
 
 # get current open browser command
-if [ $(uname -s) == "Darwin" ]
-then
-  open=open
-elif [ "$TERM" == "cygwin" ]
-then
-  if [ "$MSYSTEM" == "MINGW32" ]
-  then
-    open=start
-  else
-    open=cygstart
-  fi
-else
-  open=xdg-open
-fi
+case $( uname -s ) in
+Darwin)  open=open;;
+MINGW*)  open=start;;
+CYGWIN*) open=cygstart;;
+*)       open=xdg-open;;
+esac
 
 # open it in a browser
 $open $giturl &> /dev/null
