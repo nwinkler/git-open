@@ -1,24 +1,34 @@
-# git-open
+# git-open [![Build Status](https://img.shields.io/travis/paulirish/git-open/master.svg)](https://travis-ci.org/paulirish/git-open)
 
-Type `git open` to open the GitHub page or website for a repository in your
-browser.
+Type `git open` to open the repo website (GitHub, GitLab, Bitbucket) in your browser.
+
+![git open2015-01-24 13_51_18](https://cloud.githubusercontent.com/assets/39191/5889192/244a0b72-a3d0-11e4-8ab9-55fc64228aaa.gif)
 
 ## Usage
 
-    git open [remote-name] [branch-name]
+```sh
+git open [remote-name] [branch-name]
+git open issue
+```
+
+(`git open` works with these [hosted repo providers](#supported-remote-repositories), `git open issue` currently only works with GitHub)
 
 ### Examples
 
-    $ git open
-    > open https://github.com/REMOTE_ORIGIN_USER/CURRENT_REPO/tree/CURRENT_BRANCH
+```sh
+$ git open
+# opens https://github.com/REMOTE_ORIGIN_USER/CURRENT_REPO/tree/CURRENT_BRANCH
 
-    $ git open upstream
-    > open https://github.com/REMOTE_UPSTREAM_USER/CURRENT_REPO/tree/CURRENT_BRANCH
+$ git open upstream
+# opens https://github.com/REMOTE_UPSTREAM_USER/CURRENT_REPO/tree/CURRENT_BRANCH
 
-    $ git open upstream master
-    > open https://github.com/REMOTE_UPSTREAM_USER/CURRENT_REPO/tree/master
+$ git open upstream master
+# opens https://github.com/REMOTE_UPSTREAM_USER/CURRENT_REPO/tree/master
 
-![git open2015-01-24 13_51_18](https://cloud.githubusercontent.com/assets/39191/5889192/244a0b72-a3d0-11e4-8ab9-55fc64228aaa.gif)
+$ git open issue
+# If branches use naming convention of issues/#123,
+# opens https://github.com/REMOTE_UPSTREAM_USER/CURRENT_REPO/issues/123
+```
 
 ### Installation
 
@@ -28,9 +38,21 @@ The preferred way of installation is to simply add the `git-open` script
 somewhere into your path (e.g. add the directory to your `PATH` environment
 or copy `git-open` into an existing included path like `/usr/local/bin`).
 
-You can use also `npm` to install an OLD (1 year ago) version of this package:
+You can use also `npm` to install this package:
 
-    npm install --global git-open
+```sh
+npm install --global git-open
+```
+
+#### Using Windows Powershell
+
+Save git-open anywhere, say as ~/Documents/Scripts/git-open.sh and define
+a function in your Powershell profile (see ~/Documents/WindowsPowerShell/profile.ps1) like this:
+
+```sh
+function git-open { cmd /c "C:\Program Files\Git\usr\bin\bash.exe" "~/Documents/Scripts/git-open.sh" }
+Set-Alias -Name gop -Value git-open
+```
 
 #### Using a ZSH Framework
 
@@ -47,9 +69,9 @@ for testing before adding it to your `.zshrc`.
 ##### [Oh-My-Zsh](http://ohmyz.sh/)
 
 1. `cd ~/.oh-my-zsh/custom/plugins`
-1. `git clone git@github.com:paulirish/git-open.git gitopen`
-1. Add git-open to your plugin list - edit `~/.zshrc` and change
-   `plugins=(...)` to `plugins=(... gitopen)`
+1. `git clone git@github.com:paulirish/git-open.git`
+1. Add `git-open` to your plugin list - edit `~/.zshrc` and change
+   `plugins=(...)` to `plugins=(... git-open)`
 
 ##### [Zgen](https://github.com/tarjoilija/zgen)
 
@@ -60,7 +82,7 @@ check for updates to the git repository.
 
 ##### [zplug](https://github.com/zplug/zplug)
 
-`zplug "paulirish/git-open", as:command`
+`zplug "paulirish/git-open", as:plugin`
 
 ### Supported remote repositories
 
@@ -70,45 +92,92 @@ git-open can automatically guess the corresponding repository page for remotes
 - github.com
 - gist.github.com
 - gitlab.com
-- Gitlab custom hosted (see below)
+- GitLab custom hosted (see below)
 - bitbucket.org
 - Atlassian Bitbucket Server (formerly _Atlassian Stash_)
 
-#### Gitlab support
+#### GitLab support
 
-To configure gitlab support globally you need to set `gitopen.gitlab.domain`
+To configure GitLab support you need to set some options.
 
-    git config --global gitopen.gitlab.domain [yourdomain.here]
+| option name               | description                                                | example            |
+| ------------------------- | ---------------------------------------------------------- | ------------------ |
+| gitopen.gitlab.domain     | The (web)domain name that will work for most of the people | gitlab.example.com |
+| gitopen.gitlab.ssh.domain | A specific ssh domain name, *if needed*                    | git.example.com    |
+| gitopen.gitlab.ssh.port   | A specific ssh port, *if needed*                           | 10022              |
 
-or in your local repository:
+```sh
+# use --global to set across all repos, instead of just the local one
+git config [--global] gitopen.gitlab.domain [value]
+git config [--global] gitopen.gitlab.ssh.domain [value]
+git config [--global] gitopen.gitlab.ssh.port [value]
+```
 
-    git config gitopen.gitlab.domain [yourdomain.here]
+If your Gitlab custom hosted is serving `http` you can also specify this:
+```sh
+# use --global to set across all repos, instead of just the local one
+git config [--global] gitopen.gitlab.protocol http
+```
 
-## Related projects / alternatives
+## Alternative projects
 
 See [hub](https://github.com/github/hub) for complete GitHub opening support.
 It's the official GitHub project and provides `hub browse`.
 
-Homebrew has an alternate [git-open](https://github.com/jeffreyiacono/git-open)
+[Homebrew has an alternate git-open](https://github.com/jeffreyiacono/git-open)
 that only works with GitHub but can open user profile pages, too.
+
+@[gerep has an alternate git-open](https://github.com/gerep/git-open) that
+works with a few providers. Of note, it opens the default view for BitBucket
+instead of the source view.
+
+And, of course, [jasonmccreary's original gh](https://github.com/jasonmccreary/gh)
+from which this plugin was forked.
 
 ## Thanks
 
-[jasonmccreary](https://github.com/jasonmccreary/) did
-[all the hard work](https://github.com/jasonmccreary/gh)
+[jasonmccreary](https://github.com/jasonmccreary/) did [the initial hard work](https://github.com/jasonmccreary/gh). Since then, [many contributors](https://github.com/paulirish/git-open/graphs/contributors) have submitted great PRs.
 
-See the contributors tab for a growing list of people who have submitted PRs.
-
-## Contributing
+## Contributing & Development
 
 Please provide examples of the URLs you are parsing with each PR.
+
+You can run `git-open` in `echo` mode, which doesn't open your browser, but just prints the URL to stdout:
+```sh
+BATS_CWD="." ./git-open
+```
+
+#### Testing:
+
+You'll need to install [bats](https://github.com/sstephenson/bats#installing-bats-from-source), the Bash automated testing system. It's also available as `brew install bats`
+
+```sh
+git submodule update --init # pull in the assertion libraries
+
+# Run the test suite once:
+bats test
+
+# Run it on every change with `entr`
+brew install entr
+npm run watch
+```
+
+## Related projects
+
+- [`git recent`](https://github.com/paulirish/git-recent) - View your most recent git branches
+- [`diff-so-fancy`](https://github.com/so-fancy/diff-so-fancy/) - Making the output of `git diff` so fancy
 
 ## License
 
 Copyright Jason McCreary & Paul Irish. Licensed under MIT.
-http://opensource.org/licenses/MIT
+<http://opensource.org/licenses/MIT>
 
 ## Changelog
 
+- **2017-06-17** - test suite added
+- **2016-07-23** - readme -- fix oh-my-zsh install instructions
+- **2016-07-22** - 1.1.0, update and add linters for package.json, readme.
+  Re-publish to NPM.
 - **2016-07-11** - Changelog started (readme formatting and installation
   instructions updated)
+

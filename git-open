@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Opens the github page for a repo/branch in your browser.
+# Opens the GitHub page for a repo/branch in your browser.
 # https://github.com/paulirish/git-open/
 #
 # git open
@@ -11,7 +11,7 @@
 git rev-parse --is-inside-work-tree &>/dev/null
 
 if [[ $? != 0 ]]; then
-  echo "Not a git repository."
+  echo "Not a git repository." 1>&2
   exit 1
 fi
 
@@ -20,14 +20,25 @@ fi
 # fallback to upstream if neither is present.
 remote="origin"
 if [ -n "$1" ]; then
-  remote="$1"
+  if [ "$1" == "issue" ]; then
+    currentBranch=$(git symbolic-ref -q --short HEAD)
+    regex='^issue'
+    if [[ $currentBranch =~ $regex ]]; then
+      issue=${currentBranch#*#}
+    else
+      echo "'git open issue' expect branch naming to be issues/#123" 1>&2
+      exit 1
+    fi
+  else
+    remote="$1"
+  fi
 fi
 
 remote_url="remote.${remote}.url"
 
 giturl=$(git config --get "$remote_url")
 if [ -z "$giturl" ]; then
-  echo "$remote_url not set."
+  echo "$remote_url not set." 1>&2
   exit 1
 fi
 
@@ -43,25 +54,31 @@ fi
 branch=${branch//%/%25} && branch=${branch//#/%23}
 
 # URL normalization
-# Github gists
-if grep -q gist.github <<<$giturl; then
-  giturl=${giturl/git\@gist.github\.com\:/https://gist.github.com}
+# GitHub gists
+if grep -q gist.github <<<"$giturl"; then
+  giturl=${giturl/git\@gist.github\.com\:/https://gist.github.com/}
   providerUrlDifference=tree
 
-# Github
-elif grep -q github <<<$giturl; then
+# GitHub
+elif grep -q github <<<"$giturl"; then
   giturl=${giturl/git\@github\.com\:/https://github.com/}
+
+  # handle urls with the git user
+  giturl=${giturl/#github\.com\:/https://github.com/}
 
   # handle SSH protocol (links like ssh://git@github.com/user/repo)
   giturl=${giturl/#ssh\:\/\/git\@github\.com\//https://github.com/}
 
   providerUrlDifference=tree
 
-# bitbucket
-elif grep -q bitbucket <<<$giturl; then
+# Bitbucket
+elif grep -q bitbucket <<<"$giturl"; then
   giturl=${giturl/git\@bitbucket\.org\:/https://bitbucket.org/}
   # handle SSH protocol (change ssh://https://bitbucket.org/user/repo to https://bitbucket.org/user/repo)
   giturl=${giturl/#ssh\:\/\/git\@/https://}
+
+  # remove username
+  giturl=${giturl//\/\/*@bitbucket.org///bitbucket.org}
 
   rev="$(git rev-parse HEAD)"
   git_pwd="$(git rev-parse --show-prefix)"
@@ -69,7 +86,7 @@ elif grep -q bitbucket <<<$giturl; then
   branch="?at=${branch}"
 
 # Atlassian Bitbucket Server
-elif grep -q "/scm/" <<<$giturl; then
+elif grep -q "/scm/" <<<"$giturl"; then
   re='(.*)/scm/(.*)/(.*)\.git'
   if [[ $giturl =~ $re ]]; then
     giturl=${BASH_REMATCH[1]}/projects/${BASH_REMATCH[2]}/repos/${BASH_REMATCH[3]}
@@ -77,24 +94,55 @@ elif grep -q "/scm/" <<<$giturl; then
     branch="?at=refs%2Fheads%2F${branch}"
   fi
 
-# Gitlab
+# GitLab
 else
-  # custom gitlab
+  # custom GitLab
   gitlab_domain=$(git config --get gitopen.gitlab.domain)
-  if [ -n "$gitlab_domain" ]; then
-    if grep -q "$gitlab_domain" <<<$giturl; then
-      giturl=${giturl/git\@${gitlab_domain}:/https://${gitlab_domain}/}
+  gitlab_ssh_domain=$(git config --get gitopen.gitlab.ssh.domain)
+  gitlab_ssh_domain=${gitlab_ssh_domain:-$gitlab_domain}
+  gitlab_ssh_port=$(git config --get gitopen.gitlab.ssh.port)
+
+  gitlab_protocol=$(git config --get gitopen.gitlab.protocol)
+  if [ -z "$gitlab_protocol" ]; then
+      gitlab_protocol=https
+  fi
+
+if [ -n "$gitlab_domain" ]; then
+    if egrep -q "${gitlab_domain}|${gitlab_ssh_domain}" <<<"$giturl"; then
+
+      # bring it into the default notation
+      # handle SSH protocol (links like ssh://git@gitlab.domain.com/user/repo)
+      giturl=${giturl/#ssh\:\/\//}
+
+      # remove SSH port
+      if [ -n "$gitlab_ssh_port" ]; then
+        giturl=${giturl/\:${gitlab_ssh_port}/}
+      fi
+
+      # replace slash following domain with colon
+      giturl=${giturl/${gitlab_ssh_domain}\//${gitlab_ssh_domain}\:}
+
+      # Handle GitLab's default SSH notation (like git@gitlab.domain.com:user/repo)
+      giturl=${giturl/git\@${gitlab_ssh_domain}\:/${gitlab_protocol}://${gitlab_domain}/}
+
+
+      # remove git@ from the domain
+      giturl=${giturl/git\@${gitlab_ssh_domain}/${gitlab_domain}/}
+
       providerUrlDifference=tree
     fi
-    # hosted gitlab
-  elif grep -q gitlab <<<$giturl; then
+    # hosted GitLab
+  elif grep -q gitlab <<<"$giturl"; then
     giturl=${giturl/git\@gitlab\.com\:/https://gitlab.com/}
     providerUrlDifference=tree
   fi
 fi
+
 giturl=${giturl%\.git}
 
-if [ -n "$branch" ]; then
+if [ -n "$issue" ]; then
+  giturl="${giturl}/issues/${issue}"
+elif [ -n "$branch" ]; then
   giturl="${giturl}/${providerUrlDifference}/${branch}"
 fi
 
@@ -106,9 +154,18 @@ case $( uname -s ) in
   Darwin)  open=open;;
   MINGW*)  open=start;;
   CYGWIN*) open=cygstart;;
+  MSYS*)   open="powershell.exe –NoProfile Start";;
   *)       open=${BROWSER:-xdg-open};;
 esac
 
+# if testing, log results to stdout. otherwise, mute the output
+if [ "$BATS_CWD" ]; then
+  open=echo
+else
+  exec &>/dev/null
+fi;
+
 # open it in a browser
-$open "$giturl" &> /dev/null
-exit 0
+$open "$giturl"
+
+exit $?
