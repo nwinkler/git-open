@@ -144,7 +144,7 @@ Please provide examples of the URLs you are parsing with each PR.
 
 You can run `git-open` in `echo` mode, which doesn't open your browser, but just prints the URL to stdout:
 ```sh
-BATS_CWD="." ./git-open
+env BROWSER='echo' ./git-open
 ```
 
 #### Testing:
@@ -155,7 +155,7 @@ You'll need to install [bats](https://github.com/sstephenson/bats#installing-bat
 git submodule update --init # pull in the assertion libraries
 
 # Run the test suite once:
-bats test
+bats test  # or `npm run unit`
 
 # Run it on every change with `entr`
 brew install entr

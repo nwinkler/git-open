@@ -7,8 +7,18 @@ foldername="sandboxrepo"
 
 setup() {
   create_git_sandbox
+  export BROWSER=echo
 }
 
+##
+## Test environment
+##
+@test "test environment" {
+  assert_equal "$BROWSER" "echo"
+  cd ..
+  assert [ -e "$foldername" ]
+  assert [ -e "$foldername/.git" ]
+}
 
 ##
 ## GitHub
@@ -18,7 +28,7 @@ setup() {
   git remote set-url origin "git@github.com:user/repo.git"
   git checkout -B "master"
   run ../git-open
-  assert_output "https://github.com/user/repo/"
+  assert_output "https://github.com/user/repo"
 }
 
 @test "gh: branch" {
@@ -32,7 +42,7 @@ setup() {
   git remote set-url origin "git@github.com:user/repo.git"
   git remote add upstream "git@github.com:upstreamorg/repo.git"
   run ../git-open "upstream"
-  assert_output "https://github.com/upstreamorg/repo/"
+  assert_output "https://github.com/upstreamorg/repo"
 
   git checkout -B "mybranch"
   run ../git-open "upstream" "otherbranch"
@@ -43,24 +53,21 @@ setup() {
   # https://github.com/paulirish/git-open/pull/63
   git remote set-url origin "github.com:paulirish/git-open.git"
   run ../git-open
-  assert_output "https://github.com/paulirish/git-open/"
+  assert_output "https://github.com/paulirish/git-open"
 }
 
 @test "gh: ssh origin" {
   git remote set-url origin "ssh://git@github.com/user/repo"
   run ../git-open
-  assert_output "https://github.com/user/repo/"
+  assert_output "https://github.com/user/repo"
 
   # https://github.com/paulirish/git-open/pull/30
   git remote set-url origin "ssh://git@github.com/user/repo.git"
   run ../git-open
-  assert_output "https://github.com/user/repo/"
+  assert_output "https://github.com/user/repo"
 }
 
 @test "gh: git protocol origin" {
-  # currently fails. derimagia rewrite fixes
-  skip
-
   git remote set-url origin "git://github.com/user/repo.git"
   git checkout -B "master"
   run ../git-open
@@ -73,12 +80,17 @@ setup() {
   git checkout -B "issues/#12"
   run ../git-open "issue"
   assert_output "https://github.com/paulirish/git-open/issues/12"
+
+  # https://github.com/paulirish/git-open/pull/86
+  git checkout -B "fix-issue-36"
+  run ../git-open "issue"
+  assert_output "https://github.com/paulirish/git-open/issues/36"
 }
 
 @test "gh: gist" {
   git remote set-url origin "git@gist.github.com:2d84a6db1b41b4020685.git"
   run ../git-open
-  assert_output "https://gist.github.com/2d84a6db1b41b4020685/"
+  assert_output "https://gist.github.com/2d84a6db1b41b4020685"
 }
 
 @test "basic: # and % in branch names are URL encoded" {
@@ -101,15 +113,14 @@ setup() {
 @test "bitbucket: basic" {
   git remote set-url origin "git@bitbucket.org:paulirish/crbug-extension.git"
   run ../git-open
-  assert_output --partial "https://bitbucket.org/paulirish/crbug-extension/"
+  assert_output --partial "https://bitbucket.org/paulirish/crbug-extension"
 }
 
 @test "bitbucket: non-origin remote" {
   # https://github.com/paulirish/git-open/pull/4
   git remote add bbclone "git@bitbucket.org:rwhitbeck/git-open.git"
   run ../git-open "bbclone"
-  assert_output --partial "https://bitbucket.org/rwhitbeck/git-open/"
-  assert_output --partial "//?at=master"
+  assert_output "https://bitbucket.org/rwhitbeck/git-open"
 }
 
 @test "bitbucket: open source view" {
@@ -117,12 +128,8 @@ setup() {
   git remote set-url origin "https://bitbucket.org/kisom/consbri.git"
   git checkout -B "devel"
   run ../git-open
-  assert_output --partial "https://bitbucket.org/kisom/consbri/src/"
-  assert_output --partial "?at=devel"
-
-  # FIXME: deal with the double slash in the URL
-  skip  # FWIW, above assertions are still tested ;)
-  refute_output --partial "//"
+  refute_output --partial "//kisom"
+  assert_output "https://bitbucket.org/kisom/consbri/src?at=devel"
 }
 
 @test "bitbucket: open source view with a slash/branch" {
@@ -131,7 +138,7 @@ setup() {
   git remote set-url origin "https://bitbucket.org/guyzmo/git-repo.git"
   git checkout -B "bugfix/conftest_fix"
   run ../git-open
-  assert_output --partial "https://bitbucket.org/guyzmo/git-repo/src/"
+  assert_output --partial "https://bitbucket.org/guyzmo/git-repo/src"
   # BB appears to be fine with both literal or URL-encoded forward slash
   assert_output --partial "?at=bugfix/conftest_fix"
 }
@@ -140,8 +147,7 @@ setup() {
   # https://github.com/paulirish/git-open/pull/36
   git remote set-url origin "ssh://git@bitbucket.org/lbesson/bin.git"
   run ../git-open
-  assert_output --partial "https://bitbucket.org/lbesson/bin/"
-  assert_output --partial "//?at=master"
+  assert_output "https://bitbucket.org/lbesson/bin"
 }
 
 @test "bitbucket: no username@ in final url" {
@@ -151,18 +157,36 @@ setup() {
   refute_output --partial "@"
 }
 
+@test "bitbucket server" {
+  # https://github.com/paulirish/git-open/pull/15
+  git remote set-url origin "https://user@bitbucket.example.com/scm/ppp/test-repo.git"
+  run ../git-open
+  assert_output "https://bitbucket.example.com/projects/ppp/repos/test-repo"
+}
+
+@test "bitbucket server branch" {
+  # https://github.com/paulirish/git-open/pull/15
+  git remote set-url origin "https://user@bitbucket.example.com/scm/ppp/test-repo.git"
+  git checkout -B "bb-server"
+  run ../git-open
+  assert_output "https://bitbucket.example.com/projects/ppp/repos/test-repo/browse?at=bb-server"
+}
+
 
 ##
 ## GitLab
 ##
 
 @test "gitlab: separate domains" {
+  skip
+  # skipping until test is fixed: see #87
+
   # https://github.com/paulirish/git-open/pull/56
   git remote set-url origin "git@git.example.com:namespace/project.git"
   git config "gitopen.gitlab.domain" "gitlab.example.com"
   git config "gitopen.gitlab.ssh.domain" "git.example.com"
   run ../git-open
-  assert_output "https://gitlab.example.com/namespace/project/"
+  assert_output "https://gitlab.example.com/namespace/project"
 }
 
 @test "gitlab: default ssh origin style" {
@@ -170,7 +194,7 @@ setup() {
   git remote set-url origin "git@gitlab.example.com:user/repo"
   git config "gitopen.gitlab.domain" "gitlab.example.com"
   run ../git-open
-  assert_output "https://gitlab.example.com/user/repo/"
+  assert_output "https://gitlab.example.com/user/repo"
 }
 
 @test "gitlab: ssh://git@ origin" {
@@ -178,21 +202,20 @@ setup() {
   git remote set-url origin "ssh://git@gitlab.domain.com/user/repo"
   git config "gitopen.gitlab.domain" "gitlab.domain.com"
   run ../git-open
-  assert_output --partial "https://gitlab.domain.com/"
-  assert_output --partial "/user/repo/"
-
-  # FIXME: deal with the double slash in the URL
-  skip
-  refute_output --partial "//"
+  assert_output "https://gitlab.domain.com/user/repo"
+  refute_output --partial "//user"
 }
 
 @test "gitlab: ssh://git@host:port origin" {
+  skip
+  # skipping until test is fixed: see #87
+
   # https://github.com/paulirish/git-open/pull/76
   # this first set mostly matches the "gitlab: ssh://git@ origin" test
   git remote set-url origin "ssh://git@repo.intranet/XXX/YYY.git"
   git config "gitopen.gitlab.domain" "repo.intranet"
   run ../git-open
-  assert_output "https://repo.intranet/XXX/YYY/"
+  assert_output "https://repo.intranet/XXX/YYY"
   refute_output --partial "ssh://"
   refute_output --partial "//XXX"
 
@@ -200,7 +223,7 @@ setup() {
   git config "gitopen.gitlab.domain" "repo.intranet"
   git config "gitopen.gitlab.ssh.port" "7000"
   run ../git-open
-  assert_output "https://repo.intranet/XXX/YYY/"
+  assert_output "https://repo.intranet/XXX/YYY"
   refute_output --partial "ssh://"
   refute_output --partial "//XXX"
 }
@@ -208,7 +231,6 @@ setup() {
 # Tests not yet written:
 #   * gitopen.gitlab.port
 #   * gitopen.gitlab.protocol
-#   * Atlassian Bitbucket Server (https://github.com/paulirish/git-open/pull/15)
 
 
 teardown() {
@@ -221,15 +243,18 @@ function create_git_sandbox() {
   rm -rf "$foldername"
   mkdir "$foldername"
   cd "$foldername"
+  # safety check. Don't muck with the git repo if we're not inside the sandbox.
+  assert_equal $(basename $PWD) "$foldername"
 
   git init -q
+  assert [ -e "../$foldername/.git" ]
   git config user.email "test@runner.com" && git config user.name "Test Runner"
+
   # newer git auto-creates the origin remote
-  if [ $(git remote) ]; then
+  if ! git remote add origin "github.com:paulirish/git-open.git"; then
     git remote set-url origin "github.com:paulirish/git-open.git"
-  else
-    git remote add origin "github.com:paulirish/git-open.git"
   fi
+
   git checkout -B "master"
 
   echo "ok" > readme.txt
