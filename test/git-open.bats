@@ -21,6 +21,21 @@ setup() {
 }
 
 ##
+## Help
+##
+
+@test "help text" {
+  run ../git-open -h
+  assert_output --partial "usage: git open"
+}
+
+@test "invalid option" {
+  run ../git-open --invalid-option
+  assert_output --partial "error: unknown option \`invalid-option'"
+  assert_output --partial "usage: git open"
+}
+
+##
 ## GitHub
 ##
 
@@ -74,17 +89,20 @@ setup() {
   assert_output "https://github.com/user/repo"
 }
 
-@test "gh: git open issue" {
+@test "gh: git open --issue" {
   # https://github.com/paulirish/git-open/pull/46
   git remote set-url origin "github.com:paulirish/git-open.git"
   git checkout -B "issues/#12"
-  run ../git-open "issue"
+  run ../git-open "--issue"
   assert_output "https://github.com/paulirish/git-open/issues/12"
 
-  # https://github.com/paulirish/git-open/pull/86
-  git checkout -B "fix-issue-36"
-  run ../git-open "issue"
-  assert_output "https://github.com/paulirish/git-open/issues/36"
+  git checkout -B "fix-issue-37"
+  run ../git-open "--issue"
+  assert_output "https://github.com/paulirish/git-open/issues/37"
+
+  git checkout -B "fix-issue-38"
+  run ../git-open "-i"
+  assert_output "https://github.com/paulirish/git-open/issues/38"
 }
 
 @test "gh: gist" {
@@ -104,6 +122,45 @@ setup() {
   assert_output "https://github.com/paulirish/git-open/tree/just-50%25"
 }
 
+@test "basic: tracked remote is default" {
+  # https://github.com/paulirish/git-open/issues/65
+
+ # create a local git repo I can push to
+  remote_name="sandboxremote"
+  remote_url="git@github.com:userfork/git-open.git"
+
+  # ideally we'd set a real upstream branch, but that's not possible without
+  # pull/push'ing over the network. So we're cheating and just setting the
+  # branch.<branch>.remote config
+  # https://github.com/paulirish/git-open/pull/88#issuecomment-339813145
+  git remote add $remote_name $remote_url
+  git config --local --add branch.master.remote $remote_name
+
+  run ../git-open
+  assert_output "https://github.com/userfork/git-open"
+
+  git config --local --add branch.master.remote origin
+  run ../git-open
+  assert_output "https://github.com/paulirish/git-open"
+}
+
+@test "basic: https url can contain port" {
+  git remote set-url origin "https://github.com:99/user/repo.git"
+  run ../git-open
+  assert_output "https://github.com:99/user/repo"
+}
+
+@test "basic: ssh url has port removed from http url" {
+  git remote set-url origin "ssh://github.com:22/user/repo.git"
+  run ../git-open
+  assert_output "https://github.com/user/repo"
+}
+
+@test "basic: http url scheme is preserved" {
+  git remote set-url origin "http://github.com/user/repo.git"
+  run ../git-open
+  assert_output "http://github.com/user/repo"
+}
 
 
 ##
@@ -173,26 +230,52 @@ setup() {
 }
 
 
+@test "bitbucket: Bitbucket Server" {
+  # https://github.com/paulirish/git-open/issues/77#issuecomment-309044010
+  git remote set-url origin "https://user@mybb.domain.com/scm/ppp/rrr.git"
+  run ../git-open
+
+  # any of the following are acceptable
+  assert_output "https://mybb.domain.com/projects/ppp/repos/rrr" ||
+    assert_output "https://mybb.domain.com/projects/ppp/repos/rrr/browse/?at=master" ||
+    assert_output "https://mybb.domain.com/projects/ppp/repos/rrr/browse/?at=refs%2Fheads%2Fmaster"
+}
+
+@test "bitbucket: Bitbucket Server branch" {
+  # https://github.com/paulirish/git-open/issues/80
+  git remote set-url origin "https://user@mybb.domain.com/scm/ppp/rrr.git"
+  git checkout -B "develop"
+  run ../git-open
+
+  # The following query args work with BB Server:
+  #     at=refs%2Fheads%2Fdevelop, at=develop, at=refs/heads/develop
+  # However /src/develop does not (unlike bitbucket.org)
+  assert_output "https://mybb.domain.com/projects/ppp/repos/rrr/browse?at=develop" ||
+    assert_output "https://mybb.domain.com/projects/ppp/repos/rrr/browse?at=refs%2Fheads%2Fdevelop" ||
+    assert_output "https://mybb.domain.com/projects/ppp/repos/rrr/browse?at=refs/heads/develop"
+
+  refute_output --partial "/src/develop"
+}
+
+
+@test "bitbucket: Bitbucket Server private user repos" {
+  # https://github.com/paulirish/git-open/pull/83#issuecomment-309968538
+  git remote set-url origin "https://mybb.domain.com/scm/~first.last/rrr.git"
+  git checkout -B "develop"
+  run ../git-open
+  assert_output "https://mybb.domain.com/projects/~first.last/repos/rrr/browse?at=develop" ||
+    assert_output "https://mybb.domain.com/projects/~first.last/repos/rrr/browse?at=refs%2Fheads%2Fdevelop" ||
+    assert_output "https://mybb.domain.com/projects/~first.last/repos/rrr/browse?at=refs/heads/develop"
+
+}
+
 ##
 ## GitLab
 ##
 
-@test "gitlab: separate domains" {
-  skip
-  # skipping until test is fixed: see #87
-
-  # https://github.com/paulirish/git-open/pull/56
-  git remote set-url origin "git@git.example.com:namespace/project.git"
-  git config "gitopen.gitlab.domain" "gitlab.example.com"
-  git config "gitopen.gitlab.ssh.domain" "git.example.com"
-  run ../git-open
-  assert_output "https://gitlab.example.com/namespace/project"
-}
-
 @test "gitlab: default ssh origin style" {
   # https://github.com/paulirish/git-open/pull/55
   git remote set-url origin "git@gitlab.example.com:user/repo"
-  git config "gitopen.gitlab.domain" "gitlab.example.com"
   run ../git-open
   assert_output "https://gitlab.example.com/user/repo"
 }
@@ -200,37 +283,83 @@ setup() {
 @test "gitlab: ssh://git@ origin" {
   # https://github.com/paulirish/git-open/pull/51
   git remote set-url origin "ssh://git@gitlab.domain.com/user/repo"
-  git config "gitopen.gitlab.domain" "gitlab.domain.com"
   run ../git-open
   assert_output "https://gitlab.domain.com/user/repo"
   refute_output --partial "//user"
 }
 
-@test "gitlab: ssh://git@host:port origin" {
-  skip
-  # skipping until test is fixed: see #87
-
-  # https://github.com/paulirish/git-open/pull/76
-  # this first set mostly matches the "gitlab: ssh://git@ origin" test
-  git remote set-url origin "ssh://git@repo.intranet/XXX/YYY.git"
-  git config "gitopen.gitlab.domain" "repo.intranet"
+@test "gitlab: separate domains" {
+  # https://github.com/paulirish/git-open/pull/56
+  git remote set-url origin "git@git.example.com:namespace/project.git"
+  git config --local --add "open.https://git.example.com.domain" "gitlab.example.com"
   run ../git-open
-  assert_output "https://repo.intranet/XXX/YYY"
-  refute_output --partial "ssh://"
-  refute_output --partial "//XXX"
-
-  git remote set-url origin "ssh://git@repo.intranet:7000/XXX/YYY.git"
-  git config "gitopen.gitlab.domain" "repo.intranet"
-  git config "gitopen.gitlab.ssh.port" "7000"
-  run ../git-open
-  assert_output "https://repo.intranet/XXX/YYY"
-  refute_output --partial "ssh://"
-  refute_output --partial "//XXX"
+  assert_output "https://gitlab.example.com/namespace/project"
 }
 
-# Tests not yet written:
-#   * gitopen.gitlab.port
-#   * gitopen.gitlab.protocol
+@test "gitlab: special domain and path" {
+  git remote set-url origin "ssh://git@git.example.com:7000/XXX/YYY.git"
+  git config --local --add "open.https://git.example.com.domain" "repo.intranet/subpath"
+  git config --local --add "open.https://git.example.com.protocol" "http"
+
+  run ../git-open
+  assert_output "http://repo.intranet/subpath/XXX/YYY"
+  refute_output --partial "https://"
+}
+
+@test "gitlab: different port" {
+  # https://github.com/paulirish/git-open/pull/76
+  git remote set-url origin "ssh://git@git.example.com:7000/XXX/YYY.git"
+  run ../git-open
+  assert_output "https://git.example.com/XXX/YYY"
+  refute_output --partial ":7000"
+
+  git remote set-url origin "https://git.example.com:7000/XXX/YYY.git"
+  run ../git-open
+  assert_output "https://git.example.com:7000/XXX/YYY"
+}
+
+##
+## Visual Studio Team Services
+##
+
+@test "vsts: https url" {
+  git remote set-url origin "https://gitopen.visualstudio.com/Project/_git/Repository"
+  run ../git-open
+  assert_output --partial "https://gitopen.visualstudio.com/Project/_git/Repository"
+}
+
+@test "vsts: ssh url" {
+  git remote add vsts_ssh "ssh://gitopen@gitopen.visualstudio.com:22/Project/_git/Repository"
+  run ../git-open "vsts_ssh"
+  assert_output "https://gitopen.visualstudio.com/Project/_git/Repository"
+}
+
+@test "vsts: on-premises tfs http url" {
+  git remote set-url origin "http://tfs.example.com:8080/Project/_git/Repository"
+  run ../git-open
+  assert_output --partial "http://tfs.example.com:8080/Project/_git/Repository"
+}
+
+@test "vsts: branch" {
+  git remote set-url origin "ssh://gitopen@gitopen.visualstudio.com:22/_git/Repository"
+  git checkout -B "mybranch"
+  run ../git-open
+  assert_output "https://gitopen.visualstudio.com/_git/Repository?version=GBmybranch"
+}
+
+@test "vsts: on-premises tfs branch" {
+  git remote set-url origin "http://tfs.example.com:8080/Project/Folder/_git/Repository"
+  git checkout -B "mybranch"
+  run ../git-open
+  assert_output "http://tfs.example.com:8080/Project/Folder/_git/Repository?version=GBmybranch"
+}
+
+@test "vsts: issue" {
+  git remote set-url origin "http://tfs.example.com:8080/Project/Folder/_git/Repository"
+  git checkout -B "bugfix-36"
+  run ../git-open "--issue"
+  assert_output "http://tfs.example.com:8080/Project/Folder/_workitems?id=36"
+}
 
 
 teardown() {
